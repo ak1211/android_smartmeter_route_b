@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+
+        <variable
+            name="viewmodel"
+            type="com.ak1211.smartmeter_route_b.ui.app_preferences.AppPreferencesViewModel" />
+
+    </data>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="16dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:context=".ui.app_preferences.AppPreferencesFragment">
+
+            <TextView
+                android:id="@+id/usb_devices_list_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="USBデバイスリスト"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/swipe_refresh_layout"
+                android:layout_width="0dp"
+                android:layout_height="180dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="8dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/usb_devices_list_label">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/usb_devices_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+            <TextView
+                android:id="@+id/whm_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:text="Bルートサービスの接続情報"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/swipe_refresh_layout" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/whm_routeB_id"
+                android:layout_width="match_parent"
+                android:layout_height="70dp"
+                android:layout_marginStart="16dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/whm_label">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.Material3.TextInputEditText.FilledBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:digits="0123456789abcdefABCDEF"
+                    android:hint="認証ID"
+                    android:hyphenationFrequency="full"
+                    android:inputType="number"
+                    android:singleLine="true"
+                    android:text="@{viewmodel.showWhmRouteBIdToLayout}" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/whm_routeB_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/whm_routeB_id">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.Material3.TextInputEditText.FilledBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:afterTextChanged="@{viewmodel::afterTextChangedWhmRouteBPassword}"
+                    android:digits="0123456789abcdefABCDEF"
+                    android:hint="パスワード"
+                    android:inputType="number"
+                    android:singleLine="true"
+                    android:text="@{viewmodel.showWhmRouteBPasswordToLayout}" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/active_scan_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/active_scan_button_label"
+                android:textSize="20sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/whm_routeB_password" />
+
+            <Button
+                android:id="@+id/erase_active_scan_button"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/erace_active_scan_button_label"
+                android:textSize="14sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/active_scan_button" />
+
+            <TextView
+                android:id="@+id/whm_pandescriptor"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:text="検出されたスマートメータの情報"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/erase_active_scan_button" />
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                style="?android:attr/progressBarStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="12"
+                android:visibility="visible"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/whm_pandescriptor" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/whm_channel"
+                android:layout_width="match_parent"
+                android:layout_height="70dp"
+                android:layout_marginStart="16dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/progressBar">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.Material3.TextInputEditText.FilledBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:hint="Channel (Logical SubGHz)"
+                    android:singleLine="true"
+                    android:text='@{(viewmodel.uiStateFlow.appPref.whmPanChannel.orNull() ?? "不明").toString()}' />
+            </com.google.android.material.textfield.TextInputLayout>
+
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/whm_pan_id"
+                android:layout_width="match_parent"
+                android:layout_height="70dp"
+                android:layout_marginStart="16dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/whm_channel">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.Material3.TextInputEditText.FilledBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:hint="Pan ID (PANA)"
+                    android:singleLine="true"
+                    android:text='@{(viewmodel.uiStateFlow.appPref.whmPanId.orNull() ?? "不明").toString()}' />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/whm_ipv6_address"
+                android:layout_width="match_parent"
+                android:layout_height="70dp"
+                android:layout_marginStart="16dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/whm_pan_id">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    style="@style/Widget.Material3.TextInputEditText.FilledBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:hint="IP V6 local address"
+                    android:singleLine="true"
+                    android:text='@{(viewmodel.uiStateFlow.appPref.whmIpv6LinkLocalAddress.orNull() ?? "不明").toString()}' />
+            </com.google.android.material.textfield.TextInputLayout>
+
+
+            <Button
+                android:id="@+id/register_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/register_label"
+                android:textSize="20sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/whm_ipv6_address" />
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+</layout>

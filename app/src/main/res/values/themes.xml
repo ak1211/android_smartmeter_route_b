@@ -1,0 +1,15 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="Base.Theme.SmartmeterRouteB" parent="Theme.Material3.Light.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+    </style>
+
+    <style name="Theme.SmartmeterRouteB" parent="Base.Theme.SmartmeterRouteB" />
+
+    <style name="ConnectSwitch" parent="Base.Theme.SmartmeterRouteB">
+        <!-- active thumb & track color (30% transparency) -->
+        <item name="colorControlActivated">#FF5722</item>
+    </style>
+
+</resources>

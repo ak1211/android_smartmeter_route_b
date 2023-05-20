@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@id/navigation_home">
+
+    <fragment
+        android:id="@+id/navigation_home"
+        android:name="com.ak1211.smartmeter_route_b.ui.home.HomeFragment"
+        android:label="@string/home_fragment_label"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_navigation_home_to_navigation_app_preferences"
+            app:destination="@id/navigation_app_preferences" />
+        <action
+            android:id="@+id/action_navigation_home_to_navigation_licences"
+            app:destination="@id/navigation_licences" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/navigation_app_preferences"
+        android:name="com.ak1211.smartmeter_route_b.ui.app_preferences.AppPreferencesFragment"
+        android:label="設定"
+        tools:layout="@layout/fragment_app_preferences"/>
+    <fragment
+        android:id="@+id/navigation_licences"
+        android:name="com.ak1211.smartmeter_route_b.ui.LicencesFragment"
+        android:label="@string/licences_fragment_label"
+        tools:layout="@layout/fragment_licences" />
+
+</navigation>

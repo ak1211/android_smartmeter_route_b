@@ -1,0 +1,5 @@
+<resources>
+    <dimen name="fab_margin">16dp</dimen>
+    <dimen name="switch_min_width">64dp</dimen>
+    <dimen name="switch_height">48dp</dimen>
+</resources>

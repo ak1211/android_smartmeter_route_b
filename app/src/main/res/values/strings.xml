@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">スマートメータ ルート B テストアプリ</string>
+    <string name="action_app_preference">設定</string>
+
+    <string name="usage">使い方</string>
+
+    <!-- Strings used for fragments for navigation -->
+    <string name="app_preference_fragment_label">アプリケーションの設定</string>
+    <string name="home_fragment_label">スマートメータと通信する</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="title_activity_preference">PreferenceActivity</string>
+    <string name="usb_devices_list_header_label1">USBシリアル変換器を</string>
+    <string name="usb_devices_list_header_label2">デバイス検出</string>
+    <string name="register_label">登録</string>
+    <string name="erace_active_scan_button_label">アクティブスキャン結果を消去</string>
+    <string name="active_scan_button_label">アクティブスキャン</string>
+    <string name="action_licenses" >ライセンス</string>
+    <string name="licences_fragment_label">オープンソースライセンス</string>
+    <string name="open_source_licenses">MIT License\n
+\n
+Copyright (c) 2023 Akihiro Yamamoto.</string>
+</resources>
