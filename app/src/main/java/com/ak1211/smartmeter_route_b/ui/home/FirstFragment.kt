@@ -96,8 +96,6 @@ class FirstFragment : Fragment() {
                             false -> binding.buttonCloseport.id
                         }
                         binding.toggleGroup.check(checkedId)
-                        //
-                        Log.v(TAG, uiState.incomingData)
                     }
                 }
             }

@@ -1,6 +1,7 @@
 package com.ak1211.smartmeter_route_b.ui.home
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup

@@ -2,6 +2,7 @@ package com.ak1211.smartmeter_route_b.data
 
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
+import android.util.Log
 import arrow.core.Either
 import arrow.core.None
 import arrow.core.Option
@@ -87,6 +88,7 @@ class UsbSerialPortDataSource(private val usbManager: UsbManager) {
                     var cont = true
                     while (cont) {
                         Either.runCatching {
+                            // USBシリアル通信器が抜かれたりしたら例外が飛んでくる
                             port.read(buffer, READ_WAIT_MILLIS)
                         }.onSuccess { length ->
                             if (length > 0) {

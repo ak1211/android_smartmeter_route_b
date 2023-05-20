@@ -58,6 +58,12 @@ class AppPreferencesFragment : Fragment() {
                     viewModel.updateWhmRouteBId(it)
                 })
             }
+            // Bルートパスワードのイベントリスナを登録する
+            whmRouteBPassword.editText?.let { editText ->
+                editText.addTextChangedListener(viewModel.whmRouteBSettingsWatcher(editText) {
+                    viewModel.updateWhmRouteBPassword(it)
+                })
+            }
             // USBデバイスリスト
             usbDevicesList.apply {
                 adapter = ConcatAdapter(usbDevicesListHeaderAdapter, usbDevicesListItemAdapter)
@@ -97,16 +103,6 @@ class AppPreferencesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         Log.v(TAG, "onViewCreated")
         super.onViewCreated(view, savedInstanceState)
-        // 設定情報に変更があった
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.getAppPreferences().collect { appPreferences ->
-                    val currentUiState = viewModel.uiStateFlow.value
-                    val newUiState = currentUiState.copy(appPref = appPreferences)
-                    viewModel.updateUiState(newUiState)
-                }
-            }
-        }
         // 接続されているUSBデバイスリストに変更があった
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

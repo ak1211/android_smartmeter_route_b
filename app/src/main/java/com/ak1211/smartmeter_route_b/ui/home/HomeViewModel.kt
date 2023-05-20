@@ -73,16 +73,24 @@ class HomeViewModel(
             false -> Either.Left(RuntimeException("ポートが閉じています"))
         }
 
+    // 受信チャンネル読み込みループ
     private fun launchReadingLoop(channel: ReceiveChannel<Incoming>): Job =
         viewModelScope.launch(Dispatchers.IO) {
             channel.consumeEach {
                 it.fold(
                     { ex -> updateUiSteateSnackbarMessage(Some(ex.toString())) },
                     {
-                        updateUiSteateIncomingData(
-                            uiStateFlow.value.incomingData + it.decodeToString()
-                                .replace("\r\n", "\n")
-                        )
+                        val buff = StringBuilder()
+                        for (i in it) {
+                            val ch: Char = i.toInt().toChar()
+                            // CRLFのCRは無視する
+                            if (buff.lastOrNull() == '\r' && ch == '\n') {
+                                buff[buff.lastIndex] = ch
+                            } else {
+                                buff.append(ch)
+                            }
+                        }
+                        updateUiSteateIncomingData(uiStateFlow.value.incomingData + buff)
                     }
                 )
             }

@@ -36,7 +36,6 @@ class UsbDevicesListItemAdapter(private val onClickHandler: (UsbDevicesListItem)
     private var checkedDeviceName: Option<String> = None
 
     fun setCheckedDeviceName(name: Option<String>) {
-        Log.v("setCheckedDeviceName", "$name")
         checkedDeviceName = name
         notifyDataSetChanged()
     }

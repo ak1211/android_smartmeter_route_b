@@ -6,6 +6,7 @@ import android.hardware.usb.UsbManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.EditText
+import androidx.core.math.MathUtils.clamp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -82,17 +83,32 @@ class AppPreferencesViewModel(
             }
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                // 自身の変更で無限ループに陥るので変更前にリスナから削除する
-                editText.removeTextChangedListener(this)
-                val original =
-                    (s ?: "").lines().joinToString().filterNot { it.isWhitespace() }
-                // ついでに小文字を大文字にする
-                val capitalized = original.uppercase()
-                // ユーザーに見せるIDは4文字ごとに空白を入れる
-                val fourDigitsSeparated = capitalized.chunked(4).joinToString(" ")
-                editText.setText(fourDigitsSeparated)
-                // 変更後にリスナに再登録する
-                editText.addTextChangedListener(this)
+                // 削除の場合は何もしない
+                if (before > 0) {
+                    return
+                }
+                if (s != null && s.isNotEmpty()) {
+                    // 複数行の場合は考慮していない
+                    val original = s.lines().joinToString().filterNot { it.isWhitespace() }
+                    // ついでに小文字を大文字にする
+                    val capitalized = original.uppercase()
+                    // ユーザーに見せるIDは4文字ごとに空白を入れる
+                    val fourDigitsSeparated = capitalized.chunked(4).joinToString(" ")
+                    // 自身の変更で無限ループに陥るので変更前にリスナから削除する
+                    editText.removeTextChangedListener(this)
+                    // 変更
+                    editText.setTextKeepState(fourDigitsSeparated)
+                    // カーソルを移動する
+                    val diff = fourDigitsSeparated.length - original.length
+                    val st = editText.selectionStart
+                    val en = editText.selectionEnd
+                    editText.setSelection(
+                        clamp(st + diff, 0, editText.length()),
+                        clamp(en + diff, 0, editText.length())
+                    )
+                    // 変更後にリスナに再登録する
+                    editText.addTextChangedListener(this)
+                }
             }
 
             override fun afterTextChanged(s: Editable?) {

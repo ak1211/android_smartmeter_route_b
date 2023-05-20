@@ -80,8 +80,7 @@ class HomeFragment : Fragment() {
         //
         binding.fab.setOnClickListener {
             lifecycleScope.launch {
-                viewModel.sendCommand("SKVER")
-                    .flatMap { viewModel.sendCommand("SKINFO") }
+                viewModel.sendCommand("SKINFO")
                     .onLeft {
                         viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error"))
                     }
