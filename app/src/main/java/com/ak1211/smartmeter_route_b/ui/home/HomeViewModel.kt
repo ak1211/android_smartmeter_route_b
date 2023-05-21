@@ -2,7 +2,6 @@ package com.ak1211.smartmeter_route_b.ui.home
 
 import android.content.Context.USB_SERVICE
 import android.hardware.usb.UsbManager
-import android.view.View.OnClickListener
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -17,11 +16,13 @@ import arrow.core.Some
 import arrow.core.flatMap
 import com.ak1211.smartmeter_route_b.MyApplication
 import com.ak1211.smartmeter_route_b.UsbPermissionGrant
+import com.ak1211.smartmeter_route_b.data.AppPreferences
 import com.ak1211.smartmeter_route_b.data.AppPreferencesRepository
 import com.ak1211.smartmeter_route_b.data.Incoming
 import com.ak1211.smartmeter_route_b.data.ProbedUsbSerialDriversListRepository
 import com.ak1211.smartmeter_route_b.data.SmartWhmRouteBRepository
 import com.hoho.android.usbserial.driver.UsbSerialDriver
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -40,20 +41,22 @@ import kotlinx.coroutines.launch
  */
 class HomeViewModel(
     private val myApplication: MyApplication,
-    savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
     private val TAG: String = "HomeViewModel"
     private val appPreferencesRepository: AppPreferencesRepository by lazy { myApplication.appPreferencesRepository }
     private val smartWhmRouteBRepository: SmartWhmRouteBRepository by lazy { myApplication.smartWhmRouteBRepository }
     private val probedUsbSerialDriversListRepository: ProbedUsbSerialDriversListRepository by lazy { myApplication.probedUsbSerialDriversListRepository }
-
     private val usbManager = myApplication.getSystemService(USB_SERVICE) as UsbManager
+
+    val appPreferencesFlow: Flow<AppPreferences> get() = appPreferencesRepository.appPreferences
 
     val uiStateMutableStateFlow: MutableStateFlow<HomeUiState> =
         MutableStateFlow(HomeUiState(None, null, false, ""))
     val uiStateFlow: StateFlow<HomeUiState> get() = uiStateMutableStateFlow.asStateFlow()
 
-    val isConnected get() = smartWhmRouteBRepository.isConnected
+    val isConnectedPana get() = smartWhmRouteBRepository.isConnectedPana
 
     fun updateUiSteateSnackbarMessage(value: Option<String>) =
         uiStateMutableStateFlow.update { uiStateFlow.value.copy(snackbarMessage = value) }
@@ -61,100 +64,107 @@ class HomeViewModel(
     fun updateUiSteateUsbDeviceName(value: String) =
         uiStateMutableStateFlow.update { uiStateFlow.value.copy(usbDeviceName = value) }
 
-    fun updateUiSteateIsConnected(value: Boolean) =
-        uiStateMutableStateFlow.update { uiStateFlow.value.copy(isConnected = value) }
+    fun updateUiSteateIsConnectedPana(value: Boolean) =
+        uiStateMutableStateFlow.update { uiStateFlow.value.copy(isConnectedPana = value) }
 
     fun updateUiSteateIncomingData(value: String) =
         uiStateMutableStateFlow.update { uiStateFlow.value.copy(incomingData = value) }
 
     fun sendCommand(command: String): Either<Throwable, Unit> =
-        when (isConnected.value) {
+        when (isConnectedPana.value) {
             true -> smartWhmRouteBRepository.write((command + "\r\n").toByteArray())
             false -> Either.Left(RuntimeException("ポートが閉じています"))
         }
 
     // 受信チャンネル読み込みループ
     private fun launchReadingLoop(channel: ReceiveChannel<Incoming>): Job =
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(defaultDispatcher) {
             channel.consumeEach {
                 it.fold(
                     { ex -> updateUiSteateSnackbarMessage(Some(ex.toString())) },
                     {
-                        val buff = StringBuilder()
-                        for (i in it) {
-                            val ch: Char = i.toInt().toChar()
-                            // CRLFのCRは無視する
-                            if (buff.lastOrNull() == '\r' && ch == '\n') {
-                                buff[buff.lastIndex] = ch
-                            } else {
-                                buff.append(ch)
-                            }
-                        }
-                        updateUiSteateIncomingData(uiStateFlow.value.incomingData + buff)
+                        updateUiSteateIncomingData(uiStateFlow.value.incomingData + it.decodeToString())
                     }
                 )
             }
         }
 
-    fun getUsbDeviceName(): Flow<Option<String>> =
-        appPreferencesRepository.appPreferences.map { it.useUsbSerialDeviceName }
 
     suspend fun buttonOpenOnClick(): Either<Throwable, ReceiveChannel<Incoming>> {
-        suspend fun deviceName(): Either<Throwable, String> {
-            return appPreferencesRepository
-                .appPreferences
-                .map { appPref ->
-                    appPref.useUsbSerialDeviceName.fold(
-                        { Either.Left(RuntimeException("設定からUSBシリアル変換器を選択してください")) },
-                        { Either.Right(it) }
-                    )
-                }.first()
-        }
-
         //
-        suspend fun serialDriver(deviceName: String): Either<Throwable, UsbSerialDriver> {
-            return probedUsbSerialDriversListRepository
-                .findUsbSerialDriverByDeviceName(deviceName)
-                .map {
-                    it.fold(
-                        { Either.Left(RuntimeException("USBシリアル変換器が見つかりません")) },
-                        { Either.Right(it) }
-                    )
-                }.first()
-        }
-
-        //
-        suspend fun getGrant(usbSerialDriver: UsbSerialDriver): Either<Throwable, UsbSerialDriver> {
-            return if (usbManager.hasPermission(usbSerialDriver.device)) {
-                // 権限があるならそのまま返す
-                Either.Right(usbSerialDriver)
-            } else {
-                // 権限を要求するダイアログをだしてもらう
-                UsbPermissionGrant.getPermission(myApplication, usbSerialDriver.device)
-                    .await()
-                    .let {
-                        when (it) {
-                            UsbPermissionGrant.UsbPermission.Granted ->
-                                Either.Right(usbSerialDriver) // 権限を取得できた
-                            UsbPermissionGrant.UsbPermission.Denied ->
-                                Either.Left(RuntimeException("接続には権限が必要です")) // 権限を受け取れなかった
-                        }
-                    }
-            }
-        }
-
-        //
-        return when (isConnected.first()) {
-            true -> Either.Left(RuntimeException("すでに開かれているポートを閉じてください"))
+        return when (isConnectedPana.value) {
+            true -> Either.Left(RuntimeException("すでに開かれています"))
             false -> Either.Right(Unit)
-        }.flatMap { deviceName() }
-            .flatMap { serialDriver(it) }
+        }.flatMap { getUsbSerialDeviceName() }
+            .flatMap { getSerialDriver(it) }
             .flatMap { getGrant(it) }
-            .flatMap { smartWhmRouteBRepository.connect(viewModelScope, it) }
-            .map { launchReadingLoop(it);it }
+            .flatMap { smartWhmRouteBRepository.startPanaSession(viewModelScope, it) }
+            .flatMap { launchReadingLoop(it);Either.Right(it) }
     }
 
-    val handleOnClickButtonClose = OnClickListener { smartWhmRouteBRepository.disconnect() }
+
+    //
+    private suspend fun getUsbSerialDeviceName(): Either<Throwable, String> {
+        return appPreferencesRepository
+            .appPreferences
+            .map { appPref ->
+                appPref.useUsbSerialDeviceName.fold(
+                    { Either.Left(RuntimeException("設定からUSBシリアル変換器を選択してください")) },
+                    { Either.Right(it) }
+                )
+            }.first()
+    }
+
+    //
+    private suspend fun getSerialDriver(deviceName: String): Either<Throwable, UsbSerialDriver> {
+        return probedUsbSerialDriversListRepository
+            .findUsbSerialDriverByDeviceName(deviceName)
+            .map {
+                it.fold(
+                    { Either.Left(RuntimeException("USBシリアル変換器が見つかりません")) },
+                    { Either.Right(it) }
+                )
+            }.first()
+    }
+
+    //
+    private suspend fun getGrant(usbSerialDriver: UsbSerialDriver): Either<Throwable, UsbSerialDriver> {
+        return if (usbManager.hasPermission(usbSerialDriver.device)) {
+            // 権限があるならそのまま返す
+            Either.Right(usbSerialDriver)
+        } else {
+            // 権限を要求するダイアログをだしてもらう
+            UsbPermissionGrant.getPermission(myApplication, usbSerialDriver.device)
+                .await()
+                .let {
+                    when (it) {
+                        UsbPermissionGrant.UsbPermission.Granted ->
+                            Either.Right(usbSerialDriver) // 権限を取得できた
+                        UsbPermissionGrant.UsbPermission.Denied ->
+                            Either.Left(RuntimeException("接続には権限が必要です")) // 権限を受け取れなかった
+                    }
+                }
+        }
+    }
+
+    // 開くボタンのハンドラー
+    suspend fun handleOnClickButtonOpen() {
+        //
+        val onSuccess: (ReceiveChannel<Incoming>) -> Unit = {
+            updateUiSteateSnackbarMessage(Some("開きました"))
+        }
+        //
+        val onFailure: (Throwable) -> Unit = { ex ->
+            val msg: String = ex.message ?: ex.toString()
+            updateUiSteateSnackbarMessage(Some(msg))
+        }
+        //
+        buttonOpenOnClick().fold(onFailure, onSuccess)
+    }
+
+    // 閉じるボタンのハンドラー
+    fun handleOnClickButtonClose() =
+        smartWhmRouteBRepository.terminatePanaSession()
 
     // Define ViewModel factory in a companion object
     companion object {

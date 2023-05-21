@@ -6,6 +6,6 @@ import arrow.core.Option
 data class HomeUiState(
     val snackbarMessage: Option<String>,
     val usbDeviceName: String?,
-    val isConnected: Boolean,
+    val isConnectedPana: Boolean,
     val incomingData: String
 )

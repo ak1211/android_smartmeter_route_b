@@ -103,6 +103,21 @@ class AppPreferencesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         Log.v(TAG, "onViewCreated")
         super.onViewCreated(view, savedInstanceState)
+        // AppPreferencesが変更された
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.getAppPreferences().collect {
+                    //
+                    // 編集されている可能性があるのでBルートIDとパスワードはここでは更新しない
+                    //
+                    val update = it.copy(
+                        whmRouteBId = viewModel.uiStateFlow.value.appPref.whmRouteBId,
+                        whmRouteBPassword = viewModel.uiStateFlow.value.appPref.whmRouteBPassword
+                    )
+                    viewModel.updateUiStateAppPreferences(update)
+                }
+            }
+        }
         // 接続されているUSBデバイスリストに変更があった
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

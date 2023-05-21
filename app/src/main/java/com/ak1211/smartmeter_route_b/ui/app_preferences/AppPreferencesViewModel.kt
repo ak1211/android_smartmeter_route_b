@@ -212,10 +212,6 @@ class AppPreferencesViewModel(
         return coroutineScope {
             async {
                 //
-                when (smartWhmRouteBRepository.isConnected.first()) {
-                    true -> smartWhmRouteBRepository.disconnect()
-                    false -> Unit
-                }
                 val usbSerialDriver = getUsbSerialDeviceName(appPreferences)
                     .flatMap { getSerialDriver(it) }
                     .flatMap { getGrant(context, it) }
@@ -226,7 +222,8 @@ class AppPreferencesViewModel(
                 }
                 updateProgress(None)
                 result.map { newAppPreferences ->
-                    updateUiStateAppPreferences(newAppPreferences)
+                    // スキャン結果はそのままリポジトリに入れる
+                    appPreferencesRepository.updateAppPreferences(newAppPreferences)
                     "アクティブスキャンが完了しました"
                 }
             }

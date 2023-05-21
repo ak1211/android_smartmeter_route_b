@@ -39,20 +39,19 @@ class HomeFragment : Fragment() {
         override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) =
             menuInflater.inflate(R.menu.menu_home, menu)
 
-        override fun onMenuItemSelected(item: MenuItem): Boolean =
-            when (item.itemId) {
-                R.id.navigation_app_preferences -> {
-                    findNavController().navigate(R.id.action_navigation_home_to_navigation_app_preferences)
-                    true
-                }
-
-                R.id.navigation_licenses -> {
-                    findNavController().navigate(R.id.action_navigation_home_to_navigation_licences)
-                    true
-                }
-
-                else -> false
+        override fun onMenuItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+            R.id.navigation_app_preferences -> {
+                findNavController().navigate(R.id.action_navigation_home_to_navigation_app_preferences)
+                true
             }
+
+            R.id.navigation_licenses -> {
+                findNavController().navigate(R.id.action_navigation_home_to_navigation_licences)
+                true
+            }
+
+            else -> false
+        }
     }
 
     private var _binding: FragmentHomeBinding? = null
@@ -80,8 +79,12 @@ class HomeFragment : Fragment() {
         //
         binding.fab.setOnClickListener {
             lifecycleScope.launch {
-                viewModel.sendCommand("SKINFO")
-                    .onLeft {
+                viewModel.sendCommand("SKVER")
+                    .flatMap {
+                        viewModel.sendCommand("SKSREG S1")
+                    }.flatMap {
+                        viewModel.sendCommand("SKINFO")
+                    }.onLeft {
                         viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error"))
                     }
             }
@@ -92,7 +95,7 @@ class HomeFragment : Fragment() {
             tab.text = when (position) {
                 0 -> "DASHBOARD"
                 1 -> "TERMINAL"
-                else -> "DASHBOARD"
+                else -> throw (IllegalStateException())
             }
         }.attach()
         // Snackbarの表示
@@ -118,11 +121,10 @@ class HomeFragment : Fragment() {
     private inner class ViewPagerTwoAdapter : FragmentStateAdapter(this@HomeFragment) {
         override fun getItemCount(): Int = 2
 
-        override fun createFragment(position: Int): Fragment =
-            when (position) {
-                0 -> FirstFragment()
-                1 -> SecondFragment()
-                else -> FirstFragment()
-            }
+        override fun createFragment(position: Int): Fragment = when (position) {
+            0 -> FirstFragment()
+            1 -> SecondFragment()
+            else -> throw (IllegalStateException())
+        }
     }
 }
