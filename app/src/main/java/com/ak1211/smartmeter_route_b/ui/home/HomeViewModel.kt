@@ -2,6 +2,9 @@ package com.ak1211.smartmeter_route_b.ui.home
 
 import android.content.Context.USB_SERVICE
 import android.hardware.usb.UsbManager
+import android.os.Build
+import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -14,6 +17,7 @@ import arrow.core.None
 import arrow.core.Option
 import arrow.core.Some
 import arrow.core.flatMap
+import arrow.core.raise.either
 import com.ak1211.smartmeter_route_b.MyApplication
 import com.ak1211.smartmeter_route_b.UsbPermissionGrant
 import com.ak1211.smartmeter_route_b.data.AppPreferences
@@ -35,6 +39,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 
 /**
  *
@@ -53,10 +58,14 @@ class HomeViewModel(
     val appPreferencesFlow: Flow<AppPreferences> get() = appPreferencesRepository.appPreferences
 
     val uiStateMutableStateFlow: MutableStateFlow<HomeUiState> =
-        MutableStateFlow(HomeUiState(None, null, false, ""))
+        MutableStateFlow(HomeUiState(false, None, null, false, "", None))
     val uiStateFlow: StateFlow<HomeUiState> get() = uiStateMutableStateFlow.asStateFlow()
 
-    val isConnectedPana get() = smartWhmRouteBRepository.isConnectedPana
+    val isConnectedPanaSession get() = smartWhmRouteBRepository.nowOnPanaSessionStateFlow
+
+    fun toggleUiSteateFabOpenOrClose() {
+        uiStateMutableStateFlow.update { uiStateFlow.value.copy(isFloatingActionButtonOpend = uiStateFlow.value.isFloatingActionButtonOpend.not()) }
+    }
 
     fun updateUiSteateSnackbarMessage(value: Option<String>) =
         uiStateMutableStateFlow.update { uiStateFlow.value.copy(snackbarMessage = value) }
@@ -70,38 +79,120 @@ class HomeViewModel(
     fun updateUiSteateIncomingData(value: String) =
         uiStateMutableStateFlow.update { uiStateFlow.value.copy(incomingData = value) }
 
+    fun updateUiStateInstantWatt(value: Option<Pair<LocalDateTime, Int>>) =
+        uiStateMutableStateFlow.update { uiStateFlow.value.copy(instantWatt = value) }
+
     fun sendCommand(command: String): Either<Throwable, Unit> =
-        when (isConnectedPana.value) {
+        when (isConnectedPanaSession.value) {
             true -> smartWhmRouteBRepository.write((command + "\r\n").toByteArray())
             false -> Either.Left(RuntimeException("ポートが閉じています"))
         }
 
+    fun sendSksendto(payload: ByteArray): Either<Throwable, Unit> {
+        val p = appPreferencesRepository.appPreferences.value
+        val eitherIpV6LinkAddress = p.whmIpv6LinkLocalAddress
+            .toEither { IllegalStateException("アクティブスキャンを行ってください") }
+        val eitherCommand = eitherIpV6LinkAddress.map { ipV6LinkAddress ->
+            String.format("SKSENDTO 1 %s 0E1A 1 %04X ", ipV6LinkAddress, payload.size)
+        }
+        return eitherCommand.flatMap { cmd ->
+            when (isConnectedPanaSession.value) {
+                true -> smartWhmRouteBRepository.write(cmd.toByteArray() + payload)
+                false -> Either.Left(RuntimeException("ポートが閉じています"))
+            }
+        }
+    }
+
     // 受信チャンネル読み込みループ
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun launchReadingLoop(channel: ReceiveChannel<Incoming>): Job =
         viewModelScope.launch(defaultDispatcher) {
             channel.consumeEach {
                 it.fold(
                     { ex -> updateUiSteateSnackbarMessage(Some(ex.toString())) },
-                    {
-                        updateUiSteateIncomingData(uiStateFlow.value.incomingData + it.decodeToString())
+                    { bytes ->
+                        updateUiSteateIncomingData(uiStateFlow.value.incomingData + bytes.decodeToString())
+                        if (bytes.take(6).toByteArray().contentEquals("ERXUDP".toByteArray())) {
+                            Log.v(TAG, bytes.decodeToString())
+                            val token = bytes.decodeToString().split(" ")
+                            if (token.size == 9) {
+                                val sender: String = token[1]   // 送信元IPv6アドレス
+                                val dest: String = token[2]     // 送信先IPv6アドレス
+                                val rport: String = token[3]    // 送信元ポート番号
+                                val lport: String = token[4]    // 送信元ポート番号
+                                val senderlla: String = token[5]// 送信元のMACアドレス
+                                val secured: String =
+                                    token[6]  // MACフレームが暗号化されていた または MACフレームが暗号化されていなかった
+                                val datalen: Int? = token[7].toIntOrNull(16)  // データの長さ
+                                val payload: String = token[8]  // データ
+                                //
+                                Log.v(TAG, "datalen: $datalen")
+                                Log.v(TAG, "payload: $payload")
+                                val xs = payload.chunked(2).map {
+                                    Log.v(TAG, "it: $it")
+                                    it.toIntOrNull(16)
+                                }.filterNotNull()
+                                if (xs.size >= 18) {
+                                    val opc = xs[11]
+                                    val epc = xs[12]
+                                    Log.v(TAG, "EPC: $epc")
+                                    if (epc == 0xE7) {
+                                        // 瞬時電力測定値
+                                        val pdc = xs[13]
+                                        val edt =
+                                            (xs[14] and 0xFF) shl 24 or
+                                                    (xs[15] and 0xFF) shl 16 or
+                                                    (xs[16] and 0xFF) shl 8 or
+                                                    (xs[17] and 0xFF)
+                                        //
+                                        Log.v(TAG, "EDT: $edt Watt")
+                                        //
+                                        val now = LocalDateTime.now()
+                                        updateUiStateInstantWatt(Some(Pair(now, edt)))
+                                    }
+                                }
+                            }
+                        }
                     }
                 )
             }
         }
 
 
-    suspend fun buttonOpenOnClick(): Either<Throwable, ReceiveChannel<Incoming>> {
-        //
-        return when (isConnectedPana.value) {
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun buttonOpenOnClick(): Either<Throwable, ReceiveChannel<Incoming>> = either {
+        when (isConnectedPanaSession.value) {
             true -> Either.Left(RuntimeException("すでに開かれています"))
             false -> Either.Right(Unit)
-        }.flatMap { getUsbSerialDeviceName() }
+        }.bind()
+
+        val usbSerialDriver: UsbSerialDriver = getUsbSerialDeviceName()
             .flatMap { getSerialDriver(it) }
             .flatMap { getGrant(it) }
-            .flatMap { smartWhmRouteBRepository.startPanaSession(viewModelScope, it) }
-            .flatMap { launchReadingLoop(it);Either.Right(it) }
-    }
+            .bind()
 
+        // スマートメータとの間でPANAセッションを開始する
+        val p = appPreferencesRepository.appPreferences.value
+        val exception = RuntimeException("アクティブスキャンを行ってください")
+        val routeBId = p.whmRouteBId
+        val routeBPassword = p.whmRouteBPassword
+        val panId = p.whmPanId.toEither { exception }.bind()
+        val panChannel = p.whmPanChannel.toEither { exception }.bind()
+        val ipV6LinkAddress = p.whmIpv6LinkLocalAddress.toEither { exception }.bind()
+        //
+        val receiveChannel =
+            smartWhmRouteBRepository.startPanaSession(
+                viewModelScope,
+                usbSerialDriver,
+                routeBId,
+                routeBPassword,
+                panId,
+                panChannel,
+                ipV6LinkAddress,
+            ).bind()
+        launchReadingLoop(receiveChannel)
+        receiveChannel
+    }
 
     //
     private suspend fun getUsbSerialDeviceName(): Either<Throwable, String> {

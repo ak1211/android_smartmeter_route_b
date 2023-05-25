@@ -1,5 +1,6 @@
 package com.ak1211.smartmeter_route_b.data
 
+import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import arrow.core.Either
@@ -8,7 +9,6 @@ import arrow.core.Option
 import arrow.core.Some
 import arrow.core.firstOrNone
 import arrow.core.flatMap
-import arrow.core.flatten
 import arrow.core.raise.either
 import arrow.core.toOption
 import com.hoho.android.usbserial.driver.UsbSerialDriver
@@ -37,73 +37,71 @@ class UsbSerialPortDataSource(
     val WRITE_WAIT_MILLIS: Int = 600
     private var optUsbConnection: Option<UsbDeviceConnection> = None
     private var optUsbSerialPort: Option<UsbSerialPort> = None
-    private var _receiveSerialPort: ReceiveChannel<Incoming>? = null
-    private var _isConnectedMutableStateFlow = MutableStateFlow<Boolean>(false)
-    val isConnected: StateFlow<Boolean> get() = _isConnectedMutableStateFlow.asStateFlow()
+    private var _receiveSerialChannel: ReceiveChannel<Incoming>? = null
+    private var _isOpenedSerialPortMutableStateFlow = MutableStateFlow<Boolean>(false)
+    val isOpenedSerialPortStateFlow: StateFlow<Boolean> get() = _isOpenedSerialPortMutableStateFlow.asStateFlow()
 
     //
-    fun disconnect() {
-        _receiveSerialPort?.cancel()
-        _receiveSerialPort = null
+    fun closeSerialPort() {
+        _receiveSerialChannel?.cancel()
+        _receiveSerialChannel = null
         optUsbSerialPort.map { it.close() }
         optUsbSerialPort = None
         optUsbConnection.map { it.close() }
         optUsbConnection = None
-        _isConnectedMutableStateFlow.update { false }
+        _isOpenedSerialPortMutableStateFlow.update { false }
     }
 
     //
-    fun connect(
+    fun openSerialPort(
         externalScope: CoroutineScope,
         usbSerialDriver: UsbSerialDriver
-    ): Either<Throwable, ReceiveChannel<Incoming>> {
-        disconnect()
-        // USBデバイスをオープンする
-        val openedUsbConnection =
-            Either.catch { usbManager.openDevice(usbSerialDriver.device).toOption() }
-                .flatMap {
-                    it.fold(
-                        { Either.Left(RuntimeException("connection failed")) },
-                        { conn -> Either.Right(conn) })
-                }
-
-        // シリアルポートをオープンする
-        val result = either {
-            val connection = openedUsbConnection.bind()
-            // 接続するシリアルポートは先頭の物を選択する
-            val port = usbSerialDriver.ports.firstOrNone()
-                .toEither { RuntimeException("open port failed") }.bind()
-            Either.catch {
-                port.open(connection)
-                port.setParameters(
-                    115200,
-                    8,
-                    UsbSerialPort.STOPBITS_1,
-                    UsbSerialPort.PARITY_NONE
-                )
-            }
-            // シリアルポート読み込み用コルーチン
-            val receiveChannel: ReceiveChannel<Incoming> = readingCoroutine(externalScope, port)
-            // 成功
-            optUsbConnection = Some(connection)
-            optUsbSerialPort = Some(port)
-            _receiveSerialPort = receiveChannel
-            _isConnectedMutableStateFlow.value = true
-            Either.Right(receiveChannel)
-
-        }.flatten()
-        // 結果を返却する
-        return result.mapLeft { ex ->
-            // 失敗したとき
-            disconnect()
-            if (usbManager.hasPermission(usbSerialDriver.device)) {
-                ex
-            } else {
-                // 権限がない
-                RuntimeException("connection failed: permission is not granted")
-            }
+    ): Either<Throwable, ReceiveChannel<Incoming>> = either {
+        if (isOpenedSerialPortStateFlow.value) {
+            Either.Left(RuntimeException("すでに開かれています")) // すでにオープンしている
         }
-    }
+        val connection = openUsbDevice(usbSerialDriver.device).bind()
+        // 接続するシリアルポートは先頭の物を選択する
+        val port = usbSerialDriver.ports.firstOrNone()
+            .toEither { RuntimeException("open port failed") }.bind()
+        // シリアルポートをオープンする
+        Either.catch {
+            port.open(connection)
+            port.setParameters(
+                115200,
+                8,
+                UsbSerialPort.STOPBITS_1,
+                UsbSerialPort.PARITY_NONE
+            )
+        }
+        // 成功
+        optUsbConnection = Some(connection)
+        optUsbSerialPort = Some(port)
+        _isOpenedSerialPortMutableStateFlow.update { true }
+        // シリアルポート読み込み用コルーチンを起動する
+        readingCoroutine(externalScope, port).also {
+            _receiveSerialChannel = it
+        }
+    }.fold({ ex -> // 失敗したとき
+        closeSerialPort()
+        when (usbManager.hasPermission(usbSerialDriver.device)) {
+            //権限がある
+            true -> Either.Left(ex)
+            //権限がない
+            false -> Either.Left(RuntimeException("connection failed: permission is not granted"))
+        }
+    }, { receiveChannel: ReceiveChannel<Incoming> ->
+        Either.Right(receiveChannel)
+    })
+
+    // USBデバイスをオープンする
+    private fun openUsbDevice(device: UsbDevice): Either<Throwable, UsbDeviceConnection> =
+        Either.catch { usbManager.openDevice(device).toOption() }
+            .flatMap {
+                it.fold(
+                    { Either.Left(RuntimeException("connection failed")) },
+                    { conn -> Either.Right(conn) })
+            }
 
     // シリアルポート読み込み用コルーチン
     private fun readingCoroutine(
@@ -134,7 +132,7 @@ class UsbSerialPortDataSource(
                         }
                     }
                 }
-                disconnect()
+                closeSerialPort()
             } catch (ex: CancellationException) {
                 if (remains.size > 0) {
                     send(Either.Right(remains.toByteArray()))

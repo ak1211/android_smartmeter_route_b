@@ -1,16 +1,27 @@
 package com.ak1211.smartmeter_route_b.data
 
+import android.icu.lang.UCharacter.isPrintable
 import android.util.Log
 import arrow.core.Either
 import arrow.core.flatMap
 import arrow.core.raise.either
+import arrow.core.raise.option
 import arrow.core.toOption
+import com.ak1211.smartmeter_route_b.skstack.Epandesc
+import com.ak1211.smartmeter_route_b.skstack.IpV6LinkAddress
+import com.ak1211.smartmeter_route_b.skstack.PanChannel
+import com.ak1211.smartmeter_route_b.skstack.PanId
+import com.ak1211.smartmeter_route_b.skstack.RouteBId
+import com.ak1211.smartmeter_route_b.skstack.RouteBPassword
 import com.hoho.android.usbserial.driver.UsbSerialDriver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withTimeout
 import kotlin.math.ceil
 import kotlin.math.pow
@@ -20,82 +31,119 @@ import kotlin.math.pow
  */
 class SmartWhmRouteBRepository(private val dataSource: UsbSerialPortDataSource) {
     val TAG = "SmartWhmRouteBRepository"
-    val isConnectedPana get() = dataSource.isConnected
+    val DEFALT_TIMEOUT = 5000L
 
-    fun terminatePanaSession() = dataSource.disconnect()
+    val nowOnPanaSessionMutableStateFlow = MutableStateFlow<Boolean>(false)
+    val nowOnPanaSessionStateFlow get() = nowOnPanaSessionMutableStateFlow
 
-    fun startPanaSession(externalScope: CoroutineScope, usbSerialDriver: UsbSerialDriver)
-            : Either<Throwable, ReceiveChannel<Incoming>> {
-        return dataSource.connect(externalScope, usbSerialDriver)
+    fun terminatePanaSession() {
+        write(("SKTERM" + "\r\n").toByteArray())
+        dataSource.closeSerialPort()
+        nowOnPanaSessionStateFlow.update { false }
     }
 
+    // スマートメータとの間でPANAセッションを開始する
+    suspend fun startPanaSession(
+        externalScope: CoroutineScope,
+        usbSerialDriver: UsbSerialDriver,
+        routeBId: RouteBId,
+        routeBPassword: RouteBPassword,
+        panId: PanId,
+        panChannel: PanChannel,
+        ipV6LinkAddress: IpV6LinkAddress
+    ): Either<Throwable, ReceiveChannel<Incoming>> =
+        try {
+            either {
+                if (nowOnPanaSessionStateFlow.value) {
+                    Either.Left(RuntimeException("すでに開かれています")) // すでにポートが開かれている場合
+                }
+                val receiveChannel =
+                    dataSource.openSerialPort(externalScope, usbSerialDriver).bind()
+                nowOnPanaSessionStateFlow.update { true }
+
+                // SKSETPWD Cを送ってみる
+                write("SKSETPWD C ${routeBPassword}\r\n".toByteArray())
+                withTimeout(DEFALT_TIMEOUT) { hasOk(receiveChannel).await() }.bind()
+                // SKSETRBIDを送ってみる
+                write("SKSETRBID ${routeBId}\r\n".toByteArray())
+                withTimeout(DEFALT_TIMEOUT) { hasOk(receiveChannel).await() }.bind()
+
+                // 自端末が使用する周波数の論理チャンネル番号を設定する
+                write("SKSREG S2 ${panChannel}\r\n".toByteArray())
+                withTimeout(DEFALT_TIMEOUT) { hasOk(receiveChannel).await() }.bind()
+
+                // 自端末のPAN IDを設定する
+                write("SKSREG S3 ${panId}\r\n".toByteArray())
+                withTimeout(DEFALT_TIMEOUT) { hasOk(receiveChannel).await() }.bind()
+
+                // PANA認証
+                write("SKJOIN ${ipV6LinkAddress}\r\n".toByteArray())
+
+                // EVENT 25を待つ
+                withTimeout(DEFALT_TIMEOUT) {
+                    waitForSucceeded(receiveChannel, { it.decodeToString().startsWith("EVENT 25") })
+                        .await()
+                }.bind()
+
+                // 成功
+                receiveChannel
+            }
+        } catch (ex: Throwable) {
+            terminatePanaSession()
+            Either.Left(ex)
+        }
+
     fun write(bytes: ByteArray): Either<Throwable, Unit> {
-        Log.v(TAG, "write:${bytes.decodeToString()}")
+        val logtostring = bytes.fold("") { acc: String, b: Byte ->
+            val ch: Int = (b.toUInt() and 0xFFU).toInt()
+            if (isPrintable(ch)) {
+                acc + ch.toChar()
+            } else {
+                acc + String.format("\\x%02X", ch)
+            }
+        }
+        Log.v(TAG, "write: $logtostring")
         return dataSource.write(bytes)
     }
 
-    private suspend fun hasOk(channel: ReceiveChannel<Incoming>): Deferred<Either<Throwable, Unit>> =
-        coroutineScope {
-            fun checkIfOk(bytes: ByteArray): Boolean {
-                return bytes.decodeToString().indexOf("OK\r\n") == 0
-            }
-
-            var result: Either<Throwable, Unit> = Either.Left(RuntimeException("error"))
-            for (incoming in channel) {
-                when {
-                    incoming is Either.Left -> {
-                        result = incoming
-                        break
-                    }
-
-                    incoming is Either.Right && checkIfOk(incoming.value) -> {
-                        Log.v(TAG, "OK")
-                        result = Either.Right(Unit)
-                        break
-                    }
-
-                    else -> {} // nothing to do
-                }
-            }
-            async { result }
-        }
-
     // アクティブスキャンを実行して接続対象のスマートメータを探す
     suspend fun doActiveScan(
-        appPreferences: AppPreferences,
+        routeBId: RouteBId,
+        routeBPassword: RouteBPassword,
         usbSerialDriver: UsbSerialDriver
-    ): Deferred<Either<Throwable, AppPreferences>> =
+    ): Deferred<Either<Throwable, Pair<Epandesc, IpV6LinkAddress>>> =
         coroutineScope {
             async {
-                dataSource.disconnect()
-                dataSource.connect(this, usbSerialDriver).flatMap { channel ->
+                dataSource.closeSerialPort()
+                dataSource.openSerialPort(this, usbSerialDriver).flatMap { channel ->
                     try {
                         either {
-                            val DEFALT_TIMEOUT = 3000L
                             // SKVERを送ってみる
                             write("SKVER\r\n".toByteArray())
                             withTimeout(DEFALT_TIMEOUT) { hasOk(channel).await() }.bind()
                             // SKSETPWD Cを送ってみる
-                            val rbpassword = appPreferences.whmRouteBPassword.value
+                            val rbpassword = routeBPassword.value
                             write("SKSETPWD C $rbpassword\r\n".toByteArray())
                             withTimeout(DEFALT_TIMEOUT) { hasOk(channel).await() }.bind()
                             // SKSETRBIDを送ってみる
-                            val rbid = appPreferences.whmRouteBId.value
+                            val rbid = routeBId.value
                             write("SKSETRBID $rbid\r\n".toByteArray())
-                            hasOk(channel).await().bind()
+                            withTimeout(DEFALT_TIMEOUT) { hasOk(channel).await() }.bind()
                             // SKSCANを送ってみる
                             val channelMask: Long = 0xFFFF_FFFF
                             val numberOfChannels = channelMask.countOneBits().toDouble()
                             val duration: Int = 7
+                            // 予定される実行時間
                             val scanTimeOfSeconds =
                                 numberOfChannels * (0.01 * 2.0.pow(duration.toDouble()) + 1.0)
-                            val scanTimeOfMilliSeconds = ceil(scanTimeOfSeconds).toLong() * 1000L
+                            val scanTimeOfMilliSeconds =
+                                ceil(scanTimeOfSeconds).toLong() * 1000L
                             val channelMaskString = channelMask.toString(16).uppercase()
                             write("SKSCAN 2 $channelMaskString $duration\r\n".toByteArray())
                             withTimeout(DEFALT_TIMEOUT) { hasOk(channel).await() }.bind()
                             Log.v(TAG, "scanTimeOfSeconds: $scanTimeOfSeconds")
-                            // SKSCANの結果
-                            // これは待ち時間がながい
+                            // SKSCANの結果を得る
+                            // スマートメータが存在しないあるいは電波状態が悪い場合があるのでタイムアウトをつけておく
                             val panDescriptor =
                                 withTimeout(scanTimeOfMilliSeconds) {
                                     getSkscanResult(channel).await()
@@ -108,25 +156,67 @@ class SmartWhmRouteBRepository(private val dataSource: UsbSerialPortDataSource) 
                             val ipv6addr =
                                 withTimeout(DEFALT_TIMEOUT) { getSkll64Result(channel).await() }.bind()
                             //
-                            dataSource.disconnect()
+                            dataSource.closeSerialPort()
                             // 結果
-                            appPreferences.copy(
-                                whmPanChannel = panDescriptor["Channel"].toOption()
-                                    .map { AppPreferences.PanChannel(it) },
-                                whmPanId = panDescriptor["Pan ID"].toOption()
-                                    .map { AppPreferences.PanId(it) },
-                                whmIpv6LinkLocalAddress = ipv6addr.toOption()
-                            )
+                            option {
+                                val channel = panDescriptor["Channel"].toOption().bind()
+                                val panId = panDescriptor["Pan ID"].toOption().bind()
+                                val epandesc =
+                                    Epandesc(
+                                        channel = PanChannel(channel),
+                                        channelPage = panDescriptor["Channel Page"].toOption()
+                                            .bind(),
+                                        panId = PanId(panId),
+                                        addr = panDescriptor["Addr"].toOption().bind(),
+                                        lqi = panDescriptor["LQI"].toOption().bind(),
+                                        pairId = panDescriptor["PairID"].toOption().bind()
+                                    )
+                                val ipv6localaddr = ipv6addr.toOption().bind()
+                                Pair(epandesc, IpV6LinkAddress(ipv6localaddr))
+                            }.toEither { IllegalArgumentException("EPANDESCイベントが揃っていない") }
+                                .bind()
                         }
                     } catch (ex: Throwable) {
+                        dataSource.closeSerialPort()
                         Either.Left(ex)
-                    } finally {
-                        Log.v(TAG, "finally")
-                        dataSource.disconnect()
                     }
                 }
             }
         }
+
+
+    // 結果を得るまで待つ
+    private suspend fun waitForSucceeded(
+        channel: ReceiveChannel<Incoming>,
+        check: (ByteArray) -> Boolean
+    ): Deferred<Either<Throwable, ByteArray>> =
+        coroutineScope {
+            var result: Either<Throwable, ByteArray> = Either.Left(RuntimeException("error"))
+            for (incoming in channel) {
+                when {
+                    incoming is Either.Left -> {
+                        result = incoming
+                        break
+                    }
+
+                    incoming is Either.Right && check(incoming.value) -> {
+                        Log.v(TAG, incoming.value.decodeToString())
+                        result = incoming
+                        break
+                    }
+
+                    else -> {
+                        delay(10)
+                    } // nothing to do
+                }
+            }
+            async { result }
+        }
+
+    // OKの結果を待つ
+    private suspend fun hasOk(channel: ReceiveChannel<Incoming>): Deferred<Either<Throwable, ByteArray>> =
+        waitForSucceeded(channel, { it.decodeToString().startsWith("OK\r\n") })
+
 
     // SKSCANの結果を得る
     // シリアル通信受信待ちで停止する可能性があるのでasyncにした

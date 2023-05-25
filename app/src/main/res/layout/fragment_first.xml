@@ -64,44 +64,48 @@
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
         <TextView
-            android:id="@+id/command_label"
+            android:id="@+id/time_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:text="コマンド"
+            android:layout_marginTop="32dp"
+            android:text="0"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/toggle_group" />
 
-        <Button
-            android:id="@+id/button_skver"
-            style="@style/Widget.Material3.Button.TextButton"
+        <TextView
+            android:id="@+id/textView2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="16dp"
-            android:text="SKVER"
+            android:layout_marginTop="8dp"
+            android:text="時点の瞬時電力は"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/command_label" />
+            app:layout_constraintTop_toBottomOf="@id/time_label" />
 
-        <Button
-            android:id="@+id/button_sksreg_s1"
-            style="@style/Widget.Material3.Button.TextButton"
+        <TextView
+            android:id="@+id/instant_watt_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:text="SKSREG_S1"
-            app:layout_constraintBaseline_toBaselineOf="@id/button_skver"
-            app:layout_constraintStart_toEndOf="@id/button_skver" />
+            android:layout_marginTop="8dp"
+            android:text="0"
+            android:textSize="48sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/textView2" />
 
-        <Button
-            android:id="@+id/button_skinfo"
-            style="@style/Widget.Material3.Button.TextButton"
+        <TextView
+            android:id="@+id/textView3"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:text="SKINFO"
-            app:layout_constraintBaseline_toBaselineOf="@id/button_sksreg_s1"
-            app:layout_constraintStart_toEndOf="@id/button_sksreg_s1" />
+            android:layout_marginTop="8dp"
+            android:text="です"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/instant_watt_label" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

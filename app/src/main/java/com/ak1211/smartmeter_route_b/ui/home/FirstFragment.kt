@@ -9,7 +9,6 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import arrow.core.Some
 import arrow.core.getOrElse
 import com.ak1211.smartmeter_route_b.databinding.FragmentFirstBinding
 import kotlinx.coroutines.Dispatchers
@@ -46,22 +45,6 @@ class FirstFragment : Fragment() {
         }
         // 閉じるボタンのハンドラー
         binding.buttonCloseport.setOnClickListener { viewModel.handleOnClickButtonClose() }
-        // SKVERボタンのハンドラ
-        binding.buttonSkver.setOnClickListener {
-            viewModel.sendCommand("SKVER")
-                .onLeft { viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error")) }
-        }
-        // SKSREG_S1ボタンのハンドラ
-        binding.buttonSksregS1.setOnClickListener {
-            viewModel.sendCommand("SKSREG S1")
-                .onLeft { viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error")) }
-        }
-        // SKINFOボタンのハンドラ
-        binding.buttonSkinfo.setOnClickListener {
-            viewModel.sendCommand("SKINFO")
-                .onLeft { viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error")) }
-        }
-
         //
         return binding.root
     }
@@ -69,15 +52,14 @@ class FirstFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         //
-        val dispatcher = Dispatchers.Default
         viewModel.apply {
             // UiStateの更新
-            viewLifecycleOwner.lifecycleScope.launch(dispatcher) {
+            viewLifecycleOwner.lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    isConnectedPana.collect { updateUiSteateIsConnectedPana(it) }
+                    isConnectedPanaSession.collect { updateUiSteateIsConnectedPana(it) }
                 }
             }
-            viewLifecycleOwner.lifecycleScope.launch(dispatcher) {
+            viewLifecycleOwner.lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     appPreferencesFlow.collect { appPreferences ->
                         val optName = appPreferences.useUsbSerialDeviceName
@@ -85,7 +67,7 @@ class FirstFragment : Fragment() {
                     }
                 }
             }
-            viewLifecycleOwner.lifecycleScope.launch(dispatcher) {
+            viewLifecycleOwner.lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     uiStateFlow.collect { uiState ->
                         // 適切なトグルボタンを選択する
@@ -94,6 +76,14 @@ class FirstFragment : Fragment() {
                             false -> binding.buttonCloseport.id
                         }
                         binding.toggleGroup.check(checkedId)
+                        //
+                        uiState.instantWatt.fold(
+                            { Pair("-", "-") },
+                            { (local, w) -> Pair(local.toString(), w.toString()) })
+                            .let { (t, w) ->
+                                binding.timeLabel.text = t
+                                binding.instantWattLabel.text = w +" W"
+                            }
                     }
                 }
             }

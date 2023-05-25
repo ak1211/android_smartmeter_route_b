@@ -8,6 +8,11 @@ import arrow.core.None
 import arrow.core.Option
 import arrow.core.raise.option
 import arrow.core.toOption
+import com.ak1211.smartmeter_route_b.skstack.IpV6LinkAddress
+import com.ak1211.smartmeter_route_b.skstack.PanChannel
+import com.ak1211.smartmeter_route_b.skstack.PanId
+import com.ak1211.smartmeter_route_b.skstack.RouteBId
+import com.ak1211.smartmeter_route_b.skstack.RouteBPassword
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -29,16 +34,7 @@ class AppPreferencesRepository(private val dataStore: DataStore<Preferences>) {
 
     // 設定情報
     private val appPreferencesMutableStateFlow: MutableStateFlow<AppPreferences> =
-        MutableStateFlow(
-            AppPreferences(
-                AppPreferences.RouteBId(""),
-                AppPreferences.RouteBPassword(""),
-                None,
-                None,
-                None,
-                None
-            )
-        )
+        MutableStateFlow(AppPreferences(RouteBId(""), RouteBPassword(""), None, None, None, None))
     val appPreferences: StateFlow<AppPreferences> get() = appPreferencesMutableStateFlow.asStateFlow()
 
     fun updateAppPreferences(appPreferences: AppPreferences) =
@@ -69,7 +65,7 @@ class AppPreferencesRepository(private val dataStore: DataStore<Preferences>) {
             appPreferences.whmPanChannel.map { p[WHM_PAN_CHANNEL_KEY] = it.value }
             appPreferences.whmPanId.map { p[WHM_PAN_ID_KEY] = it.value }
             appPreferences.whmIpv6LinkLocalAddress.map {
-                p[WHM_IPV6_LINK_LOCAL_ADDRESS_KEY] = it
+                p[WHM_IPV6_LINK_LOCAL_ADDRESS_KEY] = it.value
             }
         }
     }
@@ -86,12 +82,12 @@ class AppPreferencesRepository(private val dataStore: DataStore<Preferences>) {
                     it[WHM_IPV6_LINK_LOCAL_ADDRESS_KEY].toOption()
 
                 AppPreferences(
-                    AppPreferences.RouteBId(whmRouteBId),
-                    AppPreferences.RouteBPassword(whmRouteBPassword),
+                    RouteBId(whmRouteBId),
+                    RouteBPassword(whmRouteBPassword),
                     usbSerialDeviceName,
-                    whmPanChannel.map { AppPreferences.PanChannel(it) },
-                    whmPanId.map { AppPreferences.PanId(it) },
-                    whmIpv6LinkLocalAddress
+                    whmPanChannel.map { PanChannel(it) },
+                    whmPanId.map { PanId(it) },
+                    whmIpv6LinkLocalAddress.map { IpV6LinkAddress(it) }
                 )
             }
         }

@@ -19,7 +19,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import arrow.core.None
 import arrow.core.Some
-import arrow.core.flatMap
 import com.ak1211.smartmeter_route_b.R
 import com.ak1211.smartmeter_route_b.databinding.FragmentHomeBinding
 import com.google.android.material.snackbar.Snackbar
@@ -76,18 +75,32 @@ class HomeFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         Log.v(TAG, "onViewCreated")
-        //
-        binding.fab.setOnClickListener {
-            lifecycleScope.launch {
-                viewModel.sendCommand("SKVER")
-                    .flatMap {
-                        viewModel.sendCommand("SKSREG S1")
-                    }.flatMap {
-                        viewModel.sendCommand("SKINFO")
-                    }.onLeft {
-                        viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error"))
-                    }
-            }
+        // floating action buttonハンドラ
+        binding.fab.setOnClickListener { viewModel.toggleUiSteateFabOpenOrClose() }
+        // 瞬時電力のfloating action buttonハンドラ
+        binding.fabInstantWatt.setOnClickListener {
+            val payload = listOf<Int>(
+                0x10, 0x81,         // EHD
+                0x00, 0x00,         // TID
+                0x05, 0xFF, 0x01,   // SEOJ
+                0x02, 0x88, 0x01,   // DEOJ
+                0x62,               //ESV
+                0x01,               // OPC
+                0xE7,               // 瞬時電力計測値要求
+                0x00
+            ).map { it.toByte() }.toByteArray()
+            viewModel.sendSksendto(payload)
+                .onLeft { viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error")) }
+        }
+        // SKVERのfloating action buttonハンドラ
+        binding.fabSkver.setOnClickListener {
+            viewModel.sendCommand("SKVER")
+                .onLeft { viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error")) }
+        }
+        // SKINFOのfloating action buttonハンドラ
+        binding.fabSkinfo.setOnClickListener {
+            viewModel.sendCommand("SKINFO")
+                .onLeft { viewModel.updateUiSteateSnackbarMessage(Some(it.message ?: "error")) }
         }
         //
         binding.viewPagerTwo.adapter = ViewPagerTwoAdapter()
@@ -98,7 +111,7 @@ class HomeFragment : Fragment() {
                 else -> throw (IllegalStateException())
             }
         }.attach()
-        // Snackbarの表示
+        // UiState
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiStateFlow.collect { uiState ->
@@ -107,6 +120,23 @@ class HomeFragment : Fragment() {
                         Snackbar.make(view, message, Snackbar.LENGTH_LONG).show()
                     }
                     viewModel.updateUiSteateSnackbarMessage(None)
+                    //
+                    // FABの表示
+                    when (uiState.isFloatingActionButtonOpend) {
+                        true -> {
+                            binding.fab.setImageResource(R.drawable.baseline_keyboard_arrow_down_24)
+                            View.VISIBLE
+                        }
+
+                        false -> {
+                            binding.fab.setImageResource(R.drawable.baseline_keyboard_arrow_up_24)
+                            View.INVISIBLE
+                        }
+                    }.let { v ->
+                        binding.fabSkver.visibility = v
+                        binding.fabSkinfo.visibility = v
+                        binding.fabInstantWatt.visibility = v
+                    }
                 }
             }
         }

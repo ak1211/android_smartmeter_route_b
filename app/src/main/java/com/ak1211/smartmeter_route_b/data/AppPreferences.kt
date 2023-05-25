@@ -1,6 +1,11 @@
 package com.ak1211.smartmeter_route_b.data
 
 import arrow.core.Option
+import com.ak1211.smartmeter_route_b.skstack.IpV6LinkAddress
+import com.ak1211.smartmeter_route_b.skstack.PanChannel
+import com.ak1211.smartmeter_route_b.skstack.PanId
+import com.ak1211.smartmeter_route_b.skstack.RouteBId
+import com.ak1211.smartmeter_route_b.skstack.RouteBPassword
 
 data class AppPreferences(
     val whmRouteBId: RouteBId,
@@ -8,41 +13,5 @@ data class AppPreferences(
     val useUsbSerialDeviceName: Option<String>,
     val whmPanChannel: Option<PanChannel>,
     val whmPanId: Option<PanId>,
-    val whmIpv6LinkLocalAddress: Option<String>
-) {
-    @JvmInline
-    value class RouteBId(val value: String) {
-        fun isEmpty(): Boolean = value.isEmpty()
-        fun isNotEmpty(): Boolean = value.isNotEmpty()
-        fun isBlank(): Boolean = value.isBlank()
-        fun isNotBlank(): Boolean = value.isNotBlank()
-        override fun toString(): String = value.toString()
-    }
-
-    @JvmInline
-    value class RouteBPassword(val value: String) {
-        fun isEmpty(): Boolean = value.isEmpty()
-        fun isNotEmpty(): Boolean = value.isNotEmpty()
-        fun isBlank(): Boolean = value.isBlank()
-        fun isNotBlank(): Boolean = value.isNotBlank()
-        override fun toString(): String = value.toString()
-    }
-
-    @JvmInline
-    value class PanChannel(val value: String) {
-        fun isEmpty(): Boolean = value.isEmpty()
-        fun isNotEmpty(): Boolean = value.isNotEmpty()
-        fun isBlank(): Boolean = value.isBlank()
-        fun isNotBlank(): Boolean = value.isNotBlank()
-        override fun toString(): String = value.toString()
-    }
-
-    @JvmInline
-    value class PanId(val value: String) {
-        fun isEmpty(): Boolean = value.isEmpty()
-        fun isNotEmpty(): Boolean = value.isNotEmpty()
-        fun isBlank(): Boolean = value.isBlank()
-        fun isNotBlank(): Boolean = value.isNotBlank()
-        override fun toString(): String = value.toString()
-    }
-}
+    val whmIpv6LinkLocalAddress: Option<IpV6LinkAddress>
+)

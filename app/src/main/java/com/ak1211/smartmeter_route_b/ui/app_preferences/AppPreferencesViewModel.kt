@@ -21,6 +21,8 @@ import arrow.core.flatMap
 import com.ak1211.smartmeter_route_b.MyApplication
 import com.ak1211.smartmeter_route_b.UsbPermissionGrant
 import com.ak1211.smartmeter_route_b.data.AppPreferences
+import com.ak1211.smartmeter_route_b.skstack.RouteBId
+import com.ak1211.smartmeter_route_b.skstack.RouteBPassword
 import com.hoho.android.usbserial.driver.UsbSerialDriver
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -128,7 +130,7 @@ class AppPreferencesViewModel(
     //
     fun updateWhmRouteBId(value: String) {
         val updateAppPreferences: (AppPreferences) -> AppPreferences = {
-            it.copy(whmRouteBId = AppPreferences.RouteBId(value))
+            it.copy(whmRouteBId = RouteBId(value))
         }
         uiStateMutableStateFlow.update { it.copy(appPref = updateAppPreferences(it.appPref)) }
     }
@@ -144,7 +146,7 @@ class AppPreferencesViewModel(
     //
     fun updateWhmRouteBPassword(value: String) {
         val updateAppPreferences: (AppPreferences) -> AppPreferences = {
-            it.copy(whmRouteBPassword = AppPreferences.RouteBPassword(value))
+            it.copy(whmRouteBPassword = RouteBPassword(value))
         }
         uiStateMutableStateFlow.update { it.copy(appPref = updateAppPreferences(it.appPref)) }
     }
@@ -218,11 +220,20 @@ class AppPreferencesViewModel(
                 //
                 updateProgress(Some(0))
                 val result = usbSerialDriver.flatMap {
-                    smartWhmRouteBRepository.doActiveScan(appPreferences, it).await()
+                    smartWhmRouteBRepository.doActiveScan(
+                        appPreferences.whmRouteBId,
+                        appPreferences.whmRouteBPassword,
+                        it
+                    ).await()
                 }
                 updateProgress(None)
-                result.map { newAppPreferences ->
+                result.map { (epandesc, ipv6address) ->
                     // スキャン結果はそのままリポジトリに入れる
+                    val newAppPreferences = appPreferences.copy(
+                        whmPanChannel = Some(epandesc.channel),
+                        whmPanId = Some(epandesc.panId),
+                        whmIpv6LinkLocalAddress = Some(ipv6address)
+                    )
                     appPreferencesRepository.updateAppPreferences(newAppPreferences)
                     "アクティブスキャンが完了しました"
                 }

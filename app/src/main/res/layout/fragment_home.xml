@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:contentDescription="?attr/actionModeCloseContentDescription"
     android:fitsSystemWindows="true"
     tools:context=".ui.home.FirstFragment">
 
@@ -20,12 +21,61 @@
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/viewPagerTwo"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:contentDescription="SKVER" />
     </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fab_skver"
+        style="@style/Widget.Material3.ExtendedFloatingActionButton.Surface"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="@dimen/fab_margin"
+        android:clickable="true"
+        android:elegantTextHeight="true"
+        android:gravity="bottom|end"
+        android:text="SKVER"
+        android:textSize="16sp"
+        android:visibility="invisible"
+        app:icon="@drawable/baseline_sync_alt_16"
+        app:layout_constraintBottom_toTopOf="@id/fab_skinfo"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fab_skinfo"
+        style="@style/Widget.Material3.ExtendedFloatingActionButton.Surface"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="@dimen/fab_margin"
+        android:clickable="true"
+        android:elegantTextHeight="true"
+        android:gravity="bottom|end"
+        android:text="SKINFO"
+        android:textSize="16sp"
+        android:visibility="invisible"
+        app:icon="@drawable/baseline_sync_alt_16"
+        app:layout_constraintBottom_toTopOf="@id/fab_instant_watt"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fab_instant_watt"
+        style="@style/Widget.Material3.ExtendedFloatingActionButton.Surface"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="@dimen/fab_margin"
+        android:clickable="true"
+        android:elegantTextHeight="true"
+        android:gravity="bottom|end"
+        android:text="瞬時電力"
+        android:textSize="16sp"
+        android:visibility="invisible"
+        app:icon="@drawable/baseline_sync_alt_16"
+        app:layout_constraintBottom_toTopOf="@id/fab"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab"
-        style="?attr/floatingActionButtonPrimaryStyle"
+        style="@style/ThemeOverlay.Material3.FloatingActionButton.Primary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/fab_margin"
@@ -33,7 +83,7 @@
         android:gravity="bottom|end"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:srcCompat="@drawable/baseline_sync_24" />
+        app:srcCompat="@drawable/baseline_keyboard_arrow_up_24" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
